@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+*.env
+*/.env
+*/*.env
 
 # Python
 __pycache__/
@@ -29,6 +32,10 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
+.venv
+virtualenv/
+virtualenv-*/
 
 # IDE
 .idea/
@@ -36,11 +43,14 @@ ENV/
 *.swp
 *.swo
 .DS_Store
+*.sublime-workspace
+*.sublime-project
 
 # Logs
 *.log
 logs/
 log/
+*.log.*
 
 # Testing
 .coverage
@@ -69,10 +79,31 @@ __pycache__/
 .cache/
 .pytest_cache/
 .mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+.coverage.*
 
 # Database
 *.db
 *.sqlite3
+*.sqlite
+
+# API Keys and Secrets
+*_key
+*_keys
+*_token
+*_tokens
+*_secret
+*_secrets
+*_password
+*_passwords
+*_credential
+*_credentials
+*_apikey
+*_api_key
+*_apikeys
+*_api_keys
 
 # Misc
 *.bak
@@ -80,9 +111,20 @@ __pycache__/
 *.swo
 .DS_Store
 Thumbs.db
+*.tmp
+*.temp
+*.pid
+*.seed
+*.pid.lock
 
 # Node
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log* .env
-.env
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local development
+local_settings.py
+local.py
+local_settings.json
+local.json

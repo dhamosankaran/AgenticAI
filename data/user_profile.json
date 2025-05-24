@@ -1,0 +1,31 @@
+{
+  "user_id": "44f791b1-c740-4636-b562-9cb9dd6d26d7",
+  "name": "Dhamodharan Sankaran",
+  "age": 50,
+  "income": 300000.0,
+  "risk_tolerance": "conservative",
+  "investment_goal": "balanced_growth",
+  "investment_horizon": "short-term",
+  "preferences": [
+    {
+      "asset_type": "stocks",
+      "allocation_percentage": 60.0,
+      "risk_tolerance": "moderate",
+      "is_active": true
+    },
+    {
+      "asset_type": "bonds",
+      "allocation_percentage": 30.0,
+      "risk_tolerance": "conservative",
+      "is_active": true
+    },
+    {
+      "asset_type": "crypto",
+      "allocation_percentage": 10.0,
+      "risk_tolerance": "aggressive",
+      "is_active": true
+    }
+  ],
+  "created_at": "2025-05-18 15:08:36.651307",
+  "updated_at": "2025-05-18 15:08:36.652313"
+}

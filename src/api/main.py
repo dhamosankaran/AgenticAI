@@ -15,6 +15,7 @@ from src.agents import CoordinatorAgent
 from langchain_openai import ChatOpenAI
 from src.services.user_profile_service import UserProfileService
 from src.models.user_profile import UserProfile, InvestmentPreference
+from src.config.settings import settings
 
 # Load environment variables
 load_dotenv()
@@ -33,10 +34,10 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=settings.CORS_METHODS,
+    allow_headers=settings.CORS_HEADERS,
 )
 
 # Initialize the coordinator agent
@@ -77,7 +78,7 @@ async def process_chat(request: ChatRequest):
         return ChatResponse(response=response)
     except Exception as e:
         logger.error(f"Error processing chat message: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
 
 @app.post("/api/v1/profile", response_model=UserProfileResponse)
 async def create_profile(request: UserProfileRequest):
@@ -109,7 +110,7 @@ async def create_profile(request: UserProfileRequest):
         )
     except Exception as e:
         logger.error(f"Error creating user profile: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
 
 @app.get("/api/v1/portfolio/summary")
 async def get_portfolio_summary():
@@ -121,7 +122,7 @@ async def get_portfolio_summary():
         return summary
     except Exception as e:
         logger.error(f"Error getting portfolio summary: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
 
 @app.get("/api/v1/health")
 async def health_check():

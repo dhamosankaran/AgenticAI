@@ -23,17 +23,17 @@ class MarketDataService:
         if not self.alpha_vantage_key:
             logger.warning("ALPHA_VANTAGE_API_KEY not set. Alpha Vantage features will be disabled.")
     
-    @lru_cache(maxsize=100)
-    async def get_stock_data(self, symbol: str, period: str = "1d") -> Dict:
-        """Get stock data from Yahoo Finance"""
+    def _fetch_yahoo_finance_data_sync(self, symbol: str, period: str = "1d") -> Dict:
+        """Synchronous helper to fetch stock data from Yahoo Finance"""
         try:
             stock = yf.Ticker(symbol)
             hist = stock.history(period=period)
             
             if hist.empty:
+                # Log here as well, or rely on the caller to log if error is propagated
+                logger.info(f"No data found for {symbol} using yfinance.")
                 return {"error": f"No data found for {symbol}"}
             
-            # Get the latest data
             latest = hist.iloc[-1]
             
             return {
@@ -45,8 +45,23 @@ class MarketDataService:
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
-            logger.error(f"Error fetching stock data for {symbol}: {str(e)}")
+            logger.error(f"yfinance error fetching stock data for {symbol}: {str(e)}")
             return {"error": str(e)}
+
+    @lru_cache(maxsize=100)
+    async def get_stock_data(self, symbol: str, period: str = "1d") -> Dict:
+        """Get stock data from Yahoo Finance asynchronously"""
+        try:
+            # asyncio is already imported
+            # datetime is used in _fetch_yahoo_finance_data_sync and is imported
+            result = await asyncio.to_thread(self._fetch_yahoo_finance_data_sync, symbol, period)
+            
+            if "error" in result: # Propagate errors for consistent handling
+                 logger.error(f"Error fetching stock data for {symbol} (via thread): {result['error']}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in get_stock_data for {symbol} calling to_thread: {str(e)}")
+            return {"error": str(e)} # Fallback error
     
     async def get_market_data(self, symbols: List[str] = None) -> Dict:
         """Get market data from Alpha Vantage"""

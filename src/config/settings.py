@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Logging
     LOG_FILE: str = "app.log"
     
+    # The following database settings are placeholders and not actively used by the core application at present.
     # Database Settings
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "pwd"
@@ -43,10 +44,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     
     # Security
-    SECRET_KEY: str = "your-secret-key-here"
+    SECRET_KEY: str = "NEEDS_TO_BE_REPLACED_BY_A_REAL_SECRET_KEY"
     
     # CORS Settings
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "YOUR_PRODUCTION_URL_HERE"]
     CORS_METHODS: List[str] = ["*"]
     CORS_HEADERS: List[str] = ["*"]
     

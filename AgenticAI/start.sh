@@ -14,15 +14,23 @@ command_exists() {
 }
 
 # Function to check if a port is in use
-port_in_use() {
-    lsof -i ":$1" >/dev/null 2>&1
+check_port() {
+    if command_exists lsof; then
+        lsof -i :$1 >/dev/null 2>&1
+    else
+        netstat -an | grep "LISTEN" | grep ":$1 " >/dev/null 2>&1
+    fi
 }
 
 # Function to kill process on a port
 kill_port() {
-    if port_in_use "$1"; then
-        echo -e "${BLUE}Killing process on port $1...${NC}"
-        lsof -ti ":$1" | xargs kill -9
+    if command_exists lsof; then
+        lsof -ti :$1 | xargs kill -9 2>/dev/null
+    else
+        pid=$(netstat -anp | grep ":$1 " | grep "LISTEN" | awk '{print $7}' | cut -d'/' -f1)
+        if [ ! -z "$pid" ]; then
+            kill -9 $pid 2>/dev/null
+        fi
     fi
 }
 
@@ -62,74 +70,121 @@ fi
 kill_port 8000
 kill_port 5173
 
-# Activate virtual environment if it exists, create if it doesn't
-if [ ! -d "venv" ]; then
-    echo -e "${BLUE}Creating virtual environment...${NC}"
-    python3 -m venv venv
-fi
-
-echo -e "${BLUE}Activating virtual environment...${NC}"
-source venv/bin/activate
-
-# Install backend dependencies
-echo -e "${BLUE}Installing backend dependencies...${NC}"
-pip install -r requirements.txt
-
-# Install frontend dependencies
-echo -e "${BLUE}Installing frontend dependencies...${NC}"
-cd frontend
-npm install
-cd ..
-
-# Create log files
-BACKEND_LOG="logs/backend_$(date +%Y%m%d_%H%M%S).log"
-FRONTEND_LOG="logs/frontend_$(date +%Y%m%d_%H%M%S).log"
-
-# Start backend server in the background with logging
-echo -e "${GREEN}Starting backend server...${NC}"
-echo "=== Backend Server Started at $(date) ===" > "$BACKEND_LOG"
-PYTHONPATH=$PYTHONPATH:$(pwd) uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000 >> "$BACKEND_LOG" 2>&1 &
-BACKEND_PID=$!
-
-# Start frontend server in the background with logging
-echo -e "${GREEN}Starting frontend server...${NC}"
-echo "=== Frontend Server Started at $(date) ===" > "$FRONTEND_LOG"
-cd frontend
-npm run dev >> "../$FRONTEND_LOG" 2>&1 &
-FRONTEND_PID=$!
-cd ..
-
-# Function to handle script termination
-cleanup() {
-    echo -e "\n${BLUE}Shutting down servers...${NC}"
-    echo "=== Backend Server Stopped at $(date) ===" >> "$BACKEND_LOG"
-    echo "=== Frontend Server Stopped at $(date) ===" >> "$FRONTEND_LOG"
-    kill $BACKEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
-    
-    # Rotate logs before exiting
-    rotate_logs "$BACKEND_LOG"
-    rotate_logs "$FRONTEND_LOG"
-    
-    exit 0
+# Function to create virtual environment if it doesn't exist
+create_venv() {
+    if [ ! -d "venv" ]; then
+        echo -e "${BLUE}Creating virtual environment...${NC}"
+        python3 -m venv venv
+    fi
 }
 
-# Set up trap for cleanup on script termination
-trap cleanup SIGINT SIGTERM
+# Function to install dependencies
+install_dependencies() {
+    echo -e "${BLUE}Activating virtual environment...${NC}"
+    source venv/bin/activate
 
-echo -e "${GREEN}Servers are running!${NC}"
-echo -e "${GREEN}Backend: http://localhost:8000${NC}"
-echo -e "${GREEN}Frontend: http://localhost:5173${NC}"
-echo -e "${BLUE}Press Ctrl+C to stop the servers${NC}"
-echo -e "${BLUE}Logs are being written to:${NC}"
-echo -e "${BLUE}Backend: $BACKEND_LOG${NC}"
-echo -e "${BLUE}Frontend: $FRONTEND_LOG${NC}"
+    echo -e "${BLUE}Installing backend dependencies...${NC}"
+    pip install -r requirements.txt
+
+    echo -e "${BLUE}Installing frontend dependencies...${NC}"
+    cd frontend
+    npm install
+    cd ..
+}
+
+# Function to start servers
+start_servers() {
+    # Generate timestamp for log files
+    timestamp=$(date +"%Y%m%d_%H%M%S")
+    backend_log="logs/backend_${timestamp}.log"
+    frontend_log="logs/frontend_${timestamp}.log"
+
+    # Start backend server
+    echo -e "${GREEN}Starting backend server...${NC}"
+    echo "=== Backend Server Started at $(date) ===" > "$backend_log"
+    uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000 >> "$backend_log" 2>&1 &
+    backend_pid=$!
+
+    # Start frontend server
+    echo -e "${GREEN}Starting frontend server...${NC}"
+    echo "=== Frontend Server Started at $(date) ===" > "$frontend_log"
+    cd frontend
+    npm run dev >> "../$frontend_log" 2>&1 &
+    frontend_pid=$!
+    cd ..
+
+    # Wait for servers to start
+    echo "Waiting for servers to start..."
+    sleep 5
+
+    # Check if servers are running
+    if check_port 8000 && check_port 5173; then
+        echo "Servers are running!"
+        echo -e "${GREEN}Backend: http://localhost:8000${NC}"
+        echo -e "${GREEN}Frontend: http://localhost:5173${NC}"
+        echo -e "${BLUE}Press Ctrl+C to stop the servers${NC}"
+        echo -e "${BLUE}Logs are being written to:${NC}"
+        echo -e "${BLUE}Backend: $backend_log${NC}"
+        echo -e "${BLUE}Frontend: $frontend_log${NC}"
+        
+        # Open browser
+        echo "Opening browser..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            open http://localhost:5173
+        elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux
+            xdg-open http://localhost:5173
+        elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+            # Windows
+            start http://localhost:5173
+        fi
+    else
+        echo "Error: Servers failed to start"
+        kill_port 8000
+        kill_port 5173
+        exit 1
+    fi
+
+    # Function to handle cleanup
+    cleanup() {
+        echo -e "\n${BLUE}Shutting down servers...${NC}"
+        echo "=== Backend Server Stopped at $(date) ===" >> "$backend_log"
+        echo "=== Frontend Server Stopped at $(date) ===" >> "$frontend_log"
+        kill $backend_pid 2>/dev/null
+        kill $frontend_pid 2>/dev/null
+        
+        # Rotate logs before exiting
+        rotate_logs "$backend_log"
+        rotate_logs "$frontend_log"
+        
+        exit 0
+    }
+
+    # Set up trap for cleanup
+    trap cleanup SIGINT SIGTERM
+
+    # Keep script running
+    wait
+}
+
+# Main execution
+echo "Starting Financial Advisor Agent..."
+
+# Create and activate virtual environment
+create_venv
+
+# Install dependencies
+install_dependencies
+
+# Start servers
+start_servers
 
 # Function to monitor and rotate logs periodically
 monitor_logs() {
     while true; do
-        rotate_logs "$BACKEND_LOG"
-        rotate_logs "$FRONTEND_LOG"
+        rotate_logs "$backend_log"
+        rotate_logs "$frontend_log"
         sleep 300  # Check every 5 minutes
     done
 }

@@ -104,23 +104,15 @@ class UserProfileService:
     def create_default_profile(self, user_id: str, name: str, age: int, income: float) -> UserProfile:
         """Create a default user profile with balanced allocation"""
         default_preferences = [
-            InvestmentPreference(
-                asset_type="stocks",
-                allocation_percentage=60,
-                risk_tolerance="moderate"
-            ),
-            InvestmentPreference(
-                asset_type="bonds",
-                allocation_percentage=30,
-                risk_tolerance="conservative"
-            ),
-            InvestmentPreference(
-                asset_type="crypto",
-                allocation_percentage=10,
-                risk_tolerance="aggressive"
-            )
+            InvestmentPreference(asset_type="stocks", allocation_percentage=50, risk_tolerance="moderate"),
+            InvestmentPreference(asset_type="bonds", allocation_percentage=20, risk_tolerance="conservative"),
+            InvestmentPreference(asset_type="cash", allocation_percentage=5, risk_tolerance="conservative"),
+            InvestmentPreference(asset_type="real estate", allocation_percentage=10, risk_tolerance="moderate"),
+            InvestmentPreference(asset_type="commodities", allocation_percentage=5, risk_tolerance="moderate"),
+            InvestmentPreference(asset_type="cryptocurrency", allocation_percentage=3, risk_tolerance="aggressive"),
+            InvestmentPreference(asset_type="etfs", allocation_percentage=5, risk_tolerance="moderate"),
+            InvestmentPreference(asset_type="reits", allocation_percentage=2, risk_tolerance="moderate")
         ]
-        
         profile = UserProfile(
             user_id=user_id,
             name=name,
@@ -131,6 +123,5 @@ class UserProfileService:
             investment_horizon="long-term",
             preferences=default_preferences
         )
-        
         self.save_profile(profile)
         return profile 

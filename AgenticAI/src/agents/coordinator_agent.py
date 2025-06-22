@@ -16,15 +16,17 @@ from .base_agent import BaseFinancialAgent
 from .market_analysis_agent import MarketAnalysisAgent
 from .risk_assessment_agent import RiskAssessmentAgent
 from .portfolio_agent import PortfolioAgent
+from ..services.user_profile_service import UserProfileService
 
 class CoordinatorAgent(BaseFinancialAgent):
     """Agent responsible for coordinating between different specialized agents"""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatOpenAI = None, user_profile_service: UserProfileService = None):
         # Initialize specialized agents
         self.market_agent = MarketAnalysisAgent()
         self.risk_agent = RiskAssessmentAgent()
         self.portfolio_agent = PortfolioAgent()
+        self.user_profile_service = user_profile_service or UserProfileService()
         
         # Initialize tools with proper async handling
         tools = [
@@ -113,9 +115,13 @@ class CoordinatorAgent(BaseFinancialAgent):
         """Run portfolio generation with proper error handling"""
         self.logger.debug(f"Starting portfolio generation with profile: {profile}")
         try:
-            result = self.portfolio_agent.generate_portfolio(profile)
+            # Running the async function correctly
+            result = asyncio.run(self.portfolio_agent.generate_portfolio(profile))
             self.logger.debug(f"Portfolio generation result: {result}")
-            return result
+            # The result from generate_portfolio is a Pydantic model, so we convert it to a dict and then to a JSON string
+            if hasattr(result, 'model_dump_json'):
+                return result.model_dump_json()
+            return str(result)
         except Exception as e:
             self.logger.error(f"Error in portfolio generation: {str(e)}", exc_info=True)
             return f"Error generating portfolio: {str(e)}"
@@ -150,39 +156,37 @@ class CoordinatorAgent(BaseFinancialAgent):
             self.logger.error(f"Error extracting response content: {str(e)}", exc_info=True)
             return str(response)
     
-    async def process_message(self, message: str, chat_history: Union[List[Dict[str, str]], str, None] = None) -> str:
+    async def process_message(self, message: str, user_id: str | None = None) -> str:
         """Process a user message and return a response"""
         self.logger.debug(f"Processing message: {message}")
-        self.logger.debug(f"Chat history type: {type(chat_history)}, value: {chat_history}")
+        self.logger.debug(f"User ID: {user_id}")
         
         try:
-            # Convert chat history to LangChain message format
+            contextual_message = message
+            if user_id and self.user_profile_service:
+                profile = self.user_profile_service.load_profile()
+                if profile:
+                    profile_summary = (
+                        f"Current user's profile:\n"
+                        f"- Name: {profile.name}\n"
+                        f"- Age: {profile.age}\n"
+                        f"- Income: {profile.income}\n"
+                        f"- Risk Tolerance: {profile.risk_tolerance}\n"
+                        f"- Investment Goal: {profile.investment_goal}\n"
+                        f"- Investment Horizon: {profile.investment_horizon}\n"
+                    )
+                    contextual_message = (
+                        f"Please answer the user's question based on their profile and the investment report context.\n\n"
+                        f"---USER PROFILE---\n{profile_summary}\n\n"
+                        f"---USER QUESTION---\n{message}"
+                    )
+
+            # For this MVP, we are not persisting chat history between calls in the chat bubble.
             lc_chat_history = []
             
-            # Handle different chat history formats
-            if chat_history is not None:
-                if isinstance(chat_history, str):
-                    self.logger.debug("Chat history is a string (likely a session ID), initializing empty history")
-                    lc_chat_history = []
-                elif isinstance(chat_history, list):
-                    self.logger.debug(f"Processing chat history list with {len(chat_history)} messages")
-                    for msg in chat_history:
-                        if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                            if msg["role"] == "user":
-                                lc_chat_history.append(HumanMessage(content=msg["content"]))
-                            else:
-                                lc_chat_history.append(AIMessage(content=msg["content"]))
-                        else:
-                            self.logger.warning(f"Skipping invalid message format: {msg}")
-                else:
-                    self.logger.warning(f"Unexpected chat history type: {type(chat_history)}")
-            
-            self.logger.debug(f"Converted chat history to LangChain format: {lc_chat_history}")
-            
-            # Process message
             self.logger.debug("Invoking agent executor")
             response = await self.agent_executor.ainvoke({
-                "input": message,
+                "input": contextual_message,
                 "chat_history": lc_chat_history
             })
             
@@ -196,4 +200,75 @@ class CoordinatorAgent(BaseFinancialAgent):
             
         except Exception as e:
             self.logger.error(f"Error processing message: {str(e)}", exc_info=True)
-            return f"I apologize, but I encountered an error while processing your request: {str(e)}" 
+            return f"I apologize, but I encountered an error while processing your request: {str(e)}"
+    
+    async def generate_comprehensive_report(self, user_profile: Dict) -> Dict[str, Any]:
+        """Generate a comprehensive investment report with synchronized allocation data"""
+        try:
+            # Generate portfolio allocation using the portfolio agent
+            risk_level = user_profile.get("risk_tolerance", "moderate").lower()
+            allocation_result = await self.portfolio_agent.generate_portfolio(risk_level)
+            
+            # Convert allocation to the format expected by the frontend
+            allocation_list = []
+            allocation_dict = allocation_result.model_dump()
+            
+            for asset_type, percentage in allocation_dict.items():
+                allocation_list.append({
+                    "asset_type": asset_type,
+                    "allocation_percentage": percentage * 100
+                })
+            
+            # Generate the report text with exact percentage matching
+            allocation_text_lines = []
+            for asset_type, percentage in allocation_dict.items():
+                asset_name = asset_type.replace('_', ' ').title()
+                if asset_type == "etfs":
+                    asset_name = "ETFs"
+                elif asset_type == "reits":
+                    asset_name = "REITs"
+                allocation_text_lines.append(f"**{asset_name} ({int(percentage * 100)}%)**")
+            
+            # Create comprehensive report sections
+            profile_summary = (
+                f"Based on your profile (Age: {user_profile.get('age', 'N/A')}, "
+                f"Risk Tolerance: {user_profile.get('risk_tolerance', 'N/A')}, "
+                f"Investment Goal: {user_profile.get('investment_goal', 'N/A')}, "
+                f"Time Horizon: {user_profile.get('investment_horizon', 'N/A')}), "
+                f"we recommend a {risk_level} investment approach."
+            )
+            
+            market_outlook = (
+                "Current market conditions suggest a balanced approach to asset allocation. "
+                "Diversification across multiple asset classes helps manage risk while "
+                "maintaining growth potential."
+            )
+            
+            recommendations = (
+                f"Your recommended portfolio allocation: {', '.join(allocation_text_lines)}. "
+                f"This allocation balances risk and return potential based on your {risk_level} "
+                f"risk profile and {user_profile.get('investment_horizon', 'long-term')} investment horizon."
+            )
+            
+            report = f"""Summary:
+{profile_summary}
+
+Market Outlook:
+{market_outlook}
+
+Recommendations:
+{recommendations}"""
+            
+            return {
+                "allocation": allocation_list,
+                "report": report,
+                "risk_level": risk_level
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error generating comprehensive report: {str(e)}", exc_info=True)
+            return {
+                "allocation": [],
+                "report": f"Error generating investment report: {str(e)}",
+                "risk_level": "moderate"
+            } 

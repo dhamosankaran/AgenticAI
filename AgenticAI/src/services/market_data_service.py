@@ -23,7 +23,6 @@ class MarketDataService:
         if not self.alpha_vantage_key:
             logger.warning("ALPHA_VANTAGE_API_KEY not set. Alpha Vantage features will be disabled.")
     
-    @lru_cache(maxsize=100)
     async def get_stock_data(self, symbol: str, period: str = "1d") -> Dict:
         """Get stock data from Yahoo Finance"""
         try:
@@ -190,4 +189,64 @@ class MarketDataService:
                 
         except Exception as e:
             logger.error(f"Error calculating market sentiment: {str(e)}")
-            return "Neutral" 
+            return "Neutral"
+
+    async def get_major_indices(self) -> List[Dict]:
+        """Get data for major market indices, VIX, Gold, and Oil."""
+        symbols = {
+            "Dow": "^DJI",
+            "S&P 500": "^GSPC",
+            "Nasdaq": "^IXIC",
+            "VIX": "^VIX",
+            "Gold": "GC=F",
+            "Oil": "CL=F",
+        }
+        
+        tasks = [self.get_stock_data(symbol) for symbol in symbols.values()]
+        results = await asyncio.gather(*tasks)
+        
+        # Map results back to names
+        named_results = []
+        for result in results:
+            if "error" not in result:
+                name = next((name for name, sym in symbols.items() if sym == result["symbol"]), None)
+                if name:
+                    result["name"] = name
+                    named_results.append(result)
+
+        return named_results
+
+    async def get_historical_data(self, symbol: str, period: str = "1d", interval: str = "1h") -> Dict:
+        """Get historical stock data from Yahoo Finance for a given period."""
+        try:
+            stock = yf.Ticker(symbol)
+            # Adjust interval for longer periods
+            if period in ["1y", "2y", "5y", "max"]:
+                interval = "1d"
+            elif period in ["1mo", "3mo", "6mo"]:
+                 interval = "1d"
+            elif period == "5d":
+                interval = "15m"
+            else: #1d
+                interval = "5m"
+
+
+            hist = stock.history(period=period, interval=interval)
+            
+            if hist.empty:
+                return {"error": f"No historical data found for {symbol}"}
+            
+            hist.reset_index(inplace=True)
+            # For intraday data, 'Datetime' is the column. For daily, it's 'Date'.
+            date_column = 'Datetime' if 'Datetime' in hist.columns else 'Date'
+            
+            return {
+                "symbol": symbol,
+                "history": [
+                    {"date": row[date_column].isoformat(), "price": row["Close"]}
+                    for index, row in hist.iterrows()
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
+            return {"error": str(e)} 

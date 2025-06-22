@@ -73,6 +73,8 @@ node_modules/
 *.tgz
 .yarn-integrity
 .eslintcache
+/frontend/node_modules/
+**/node_modules/
 
 # Cache
 __pycache__/
@@ -104,6 +106,10 @@ coverage/
 *_api_key
 *_apikeys
 *_api_keys
+sk-*
+*sk-*
+openai_api_key*
+OPENAI_API_KEY*
 
 # Misc
 *.bak
@@ -128,3 +134,23 @@ local_settings.py
 local.py
 local_settings.json
 local.json
+
+# Additional library excludes
+**/node_modules/**
+**/venv/**
+**/env/**
+**/dist/**
+**/build/**
+**/.git/**
+**/htmlcov/**
+**/__pycache__/**
+*.pyc
+*.pyo
+*.pyd
+
+# Backup files
+*_backup*
+*.backup
+backup_*
+*_old*
+*.old

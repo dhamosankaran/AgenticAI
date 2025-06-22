@@ -1,0 +1,17 @@
+# Lessons
+
+* **API Keys**: Always use environment variables for API keys. Never commit API keys.
+* **Virtual Environment**: Always activate the virtual environment before running commands.
+* **Financial Data**: Cache API responses to avoid rate limits and improve performance.
+* **Error Handling**: Implement basic error handling for all API calls and data processing.
+* **Testing**: Write basic tests, especially for financial calculations.
+* **Documentation**: Keep documentation up-to-date with code changes.
+* **Data Validation**: Validate all user inputs and API responses.
+* **Rate Limiting**: Implement basic rate limiting for external API calls.
+* **Caching**: Use basic caching for market data.
+* **Security**: Follow basic security practices.
+* **Logging**: Implement basic logging for debugging.
+* **Performance**: Optimize basic performance.
+* **Maintainability**: Follow clean code principles.
+* **GIT SECURITY CRITICAL**: When API keys are accidentally committed to git history, use git filter-branch or create clean orphan branches and force push to completely remove sensitive data from GitHub. Always enhance .gitignore to prevent future exposures.
+* **EMERGENCY API KEY PROCEDURES**: If API keys are exposed in git history: 1) Immediately revoke the exposed key, 2) Create new API key, 3) Use git filter-branch or orphan branch approach to completely rewrite git history, 4) Force push to replace remote history, 5) Clear local reflog and run aggressive garbage collection, 6) Enhance .gitignore with comprehensive exclusions. 

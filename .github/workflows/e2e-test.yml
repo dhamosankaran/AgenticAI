@@ -1,0 +1,86 @@
+name: E2E Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      backend:
+        image: python:3.11
+        ports:
+          - 8000:8000
+        options: --health-cmd "curl -f http://localhost:8000/health || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Setup Python for backend
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # Setup Node.js for frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Install backend dependencies
+      - name: Install Backend Dependencies
+        run: |
+          cd python_agents
+          pip install -r requirements.txt
+          python -m pytest
+
+      # Start backend server
+      - name: Start Backend Server
+        run: |
+          cd python_agents
+          uvicorn src.api.main:app --host 0.0.0.0 --port 8000 &
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+
+      # Install frontend dependencies
+      - name: Install Frontend Dependencies
+        run: |
+          npm ci
+          npm install -g playwright@latest
+          npx playwright install --with-deps
+
+      # Build frontend
+      - name: Build Frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_WS_URL: ws://localhost:8000
+
+      # Start frontend server
+      - name: Start Frontend Server
+        run: |
+          npm run start &
+          sleep 10
+
+      # Run E2E tests
+      - name: Run E2E Tests
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
+
+      # Upload test results
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30 
